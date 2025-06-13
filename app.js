@@ -38,13 +38,9 @@ app.delete('/monitor', async function( req, res ) {
   res.status(204).send();
 });
 
-app.post('/delta', async function( req, res ) {
-  // TODO: also support push:Disconnect
-
-  // We look for anything that is a cache:Clear
-  const quadsBySubject = {};
-  const insertedQuads = req.body.map( (delta) => delta.inserts ).flat();
+async function handleCacheClears(insertedQuads) {
   const clearEvents = [];
+  const quadsBySubject = {};
 
   // Make sure each interesting quadsBySubject has an empty array
   insertedQuads
@@ -88,10 +84,52 @@ app.post('/delta', async function( req, res ) {
         push:message ${sparqlEscapeString(path)}.`
     })
                         .join("\n");
-    await update(`PREFIX push: <http://mu.semte.ch/vocabularies/push/>
+    try {
+      await update(`PREFIX push: <http://mu.semte.ch/vocabularies/push/>
       PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
       INSERT DATA { ${clearEventTriples} }`);
+    } catch (e) {
+      console.error(`Something went wrong processing updates`);
+    }
   }
+}
+async function handleClientDisconnects(deletedQuads) {
+  // Make sure each interesting quadsBySubject has an empty array
+  deletedQuads
+    .filter( (quad) => quad.predicate.value === "http://www.w3.org/1999/02/22-rdf-syntax-ns#type" )
+    .filter( (quad) => quad.object.value === "http://mu.semte.ch/vocabularies/push/Tab" );
+
+  // TODO: improve datastructure for detecting what is being monitored by a tab
+
+  // if each tab also knows the allowedGroups fullUri combinations it is monitoring, then we need much much less looping
+
+  const tabUris = deletedQuads.map( (quad) => quad.subject.value );
+
+  for (let allowedGroups of Object.keys(monitored)) {
+    for (let fullUrl of Object.keys(monitored[allowedGroups]))
+      monitored[allowedGroups][fullUrl] =
+        monitored[allowedGroups][fullUrl].filter( (x) => tabUris.includes(x) );
+  }
+
+  console.log(`Removed tabs`, {tabUris});
+}
+
+app.post('/delta', async function( req, res ) {
+  // TODO: also support push:Disconnect
+
+  // Two parts:
+  // a. when a tab disconnects, we should remove it from the tabs which are monitoring
+  // b. we should check the cache:Clear messages and convert them if they match what we need.
+
+  // We look for anything that is a cache:Clear
+  const body = req.body;
+  console.log(body);
+
+  const insertedQuads = body.map( (delta) => delta.inserts ).flat();
+  await handleCacheClears(insertedQuads);
+  const deletedQuads = body.map( (delta) => delta.deletes ).flat();
+  console.log({deletedQuads});
+  await handleClientDisconnects(deletedQuads);
 
   res.status(204).send();
 });
