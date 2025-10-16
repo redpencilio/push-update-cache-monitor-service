@@ -108,7 +108,7 @@ async function handleClientDisconnects(deletedQuads) {
   for (let allowedGroups of Object.keys(monitored)) {
     for (let fullUrl of Object.keys(monitored[allowedGroups]))
       monitored[allowedGroups][fullUrl] =
-        monitored[allowedGroups][fullUrl].filter( (x) => tabUris.includes(x) );
+        monitored[allowedGroups][fullUrl].filter( (x) => ! tabUris.includes(x) );
   }
 
   console.log(`Removed tabs`, {tabUris});
