@@ -12,7 +12,7 @@ Add the following snippet to your `docker-compose.yml`
 
 ``` yaml
 services:
-  push-update-resource-monitor:
+  push-update-cache-monitor:
     image: redpencil/push-update-cache-monitor
     environment:
       DEFAULT_MU_AUTH_SCOPE: "http://services.semantic.works/push-updates-monitor"
